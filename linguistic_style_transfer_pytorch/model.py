@@ -8,7 +8,7 @@ import math
 mconfig = ModelConfig()
 gconfig = GeneralConfig()
 
-"bla bla"
+"bla bla bla"
 class AdversarialVAE(nn.Module):
     """
     Model architecture defined according to the paper
