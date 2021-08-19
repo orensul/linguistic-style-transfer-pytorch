@@ -65,7 +65,7 @@ class ModelConfig:
         self.vocab_size = 9203
         self.epochs = 2
         # batch setting
-        self.batch_size = 33
+        self.batch_size = 128
         # layer sizes
         self.embedding_size = 300
         self.hidden_dim = 256

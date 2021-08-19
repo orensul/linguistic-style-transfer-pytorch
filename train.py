@@ -39,19 +39,17 @@ if __name__ == "__main__":
     print("Training started!")
     count = 0
     for epoch in trange(mconfig.epochs, desc="Epoch"):
-
         for iteration, batch in enumerate(tqdm(train_dataloader)):
-            print(count)
             # unpacking
             sequences, seq_lens, labels, bow_rep = batch
+            # 128 sequences, each one in constant len of 15,
+            # 128 seq_lens, each one is tensor [x] with x the length of the sequence
+            # 128 labels, each one is tensor [1,0] for positive or [0, 1] for neg
             if use_cuda:
                 sequences = sequences.cuda()
                 seq_lens = seq_lens.cuda()
                 labels = labels.cuda()
                 bow_rep = bow_rep.cuda()
-                if (seq_lens == 0).nonzero().size()[0] != 0:
-                    count += 1
-                    continue
             content_disc_loss, style_disc_loss, vae_and_cls_loss = model(
                 sequences, seq_lens.squeeze(1), labels, bow_rep, iteration+1, epoch == mconfig.epochs-1)
 

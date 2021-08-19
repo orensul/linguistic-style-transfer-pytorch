@@ -8,7 +8,6 @@ import math
 mconfig = ModelConfig()
 gconfig = GeneralConfig()
 
-"bla bla bla"
 class AdversarialVAE(nn.Module):
     """
     Model architecture defined according to the paper
@@ -92,6 +91,7 @@ class AdversarialVAE(nn.Module):
         packed_seqs = pack_padded_sequence(
             embedded_seqs, lengths=seq_lengths, batch_first=True)
         packed_output, (_) = self.encoder(packed_seqs)
+
 
         output, lengths = pad_packed_sequence(packed_output, batch_first=True)
         sentence_emb = output[torch.arange(output.size(0)), seq_lengths-1]
@@ -186,7 +186,7 @@ class AdversarialVAE(nn.Module):
             packed_seqs = pack_padded_sequence(
                 embedded_seqs, lengths=seq_lengths, batch_first=True)
             packed_output, (_) = self.encoder(packed_seqs)
-            output, _ = pad_packed_sequence(packed_output, batch_first=True)
+            output, lengths = pad_packed_sequence(packed_output, batch_first=True)
             sentence_emb = output[torch.arange(output.size(0)), seq_lengths-1]
             # get content and style embeddings from the sentence embeddings,i.e. final_hidden_state
             content_emb_mu, content_emb_log_var = self.get_content_emb(
@@ -225,8 +225,6 @@ class AdversarialVAE(nn.Module):
             mu: embedding of the mean of the Gaussian distribution of the content's latent space
             log_var: embedding of the log of variance of the Gaussian distribution of the content's latent space
         """
-        print("sentence emb size: ")
-        print(sentence_emb.size())
         mu = self.content_mu(sentence_emb)
         log_var = self.content_log_var(sentence_emb)
 
@@ -431,7 +429,7 @@ class AdversarialVAE(nn.Module):
             # Prepend the input sentences with <sos> token
             sos_token_tensor = torch.LongTensor(
                 [gconfig.predefined_word_index['<sos>']]).cuda(device=input_sentences.device).unsqueeze(0).repeat(
-                mconfig.batch_size, 1)
+                len(input_sentences), 1)
             input_sentences = torch.cat(
                 (sos_token_tensor, input_sentences), dim=1)
             sentence_embs = self.dropout(self.embedding(input_sentences))
@@ -444,10 +442,10 @@ class AdversarialVAE(nn.Module):
             # Delete latent embedding and sos token tensor to reduce memory usage
             del latent_emb, sos_token_tensor
             output_sentences = torch.zeros(
-                mconfig.max_seq_len, mconfig.batch_size, mconfig.vocab_size, device=input_sentences.device)
+                mconfig.max_seq_len, len(input_sentences), mconfig.vocab_size, device=input_sentences.device)
             # initialize hidden state
             hidden_states = torch.zeros(
-                mconfig.batch_size, mconfig.hidden_dim, device=input_sentences.device)
+                len(input_sentences), mconfig.hidden_dim, device=input_sentences.device)
             # generate sentences one word at a time in a loop
             for idx in range(mconfig.max_seq_len):
                 # get words at the index idx from all the batches
