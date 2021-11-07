@@ -523,5 +523,4 @@ class AdversarialVAE(nn.Module):
         transfered_sentence = self.generate_sentences(
             input_sentencs=None, latent_emb=generative_emb, inference=True)
         print(2)
-        print(3)
         return transfered_sentence.view(-1)
