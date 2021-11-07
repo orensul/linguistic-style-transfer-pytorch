@@ -23,6 +23,7 @@ if __name__ == "__main__":
         model = model.cuda()
 
     #=============== Define dataloader ================#
+    pdb.set_trace()
     train_dataset = TextDataset(mode='train')
     train_dataloader = DataLoader(train_dataset, batch_size=mconfig.batch_size)
     content_discriminator_params, style_discriminator_params, vae_and_classifier_params = model.get_params()
@@ -39,9 +40,12 @@ if __name__ == "__main__":
     print("Training started!")
     count = 0
     for epoch in trange(mconfig.epochs, desc="Epoch"):
+        count = 0
         for iteration, batch in enumerate(tqdm(train_dataloader)):
+            print(count)
             # unpacking
             sequences, seq_lens, labels, bow_rep = batch
+
             # 128 sequences, each one in constant len of 15,
             # 128 seq_lens, each one is tensor [x] with x the length of the sequence
             # 128 labels, each one is tensor [1,0] for positive or [0, 1] for neg
@@ -50,6 +54,9 @@ if __name__ == "__main__":
                 seq_lens = seq_lens.cuda()
                 labels = labels.cuda()
                 bow_rep = bow_rep.cuda()
+            if len(sequences) != mconfig.batch_size:
+                count += 1
+                continue
             content_disc_loss, style_disc_loss, vae_and_cls_loss = model(
                 sequences, seq_lens.squeeze(1), labels, bow_rep, iteration+1, epoch == mconfig.epochs-1)
 

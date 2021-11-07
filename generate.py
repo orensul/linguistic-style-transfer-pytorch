@@ -1,3 +1,5 @@
+import pdb
+
 import torch
 import os
 import argparse
@@ -13,7 +15,7 @@ gconfig = GeneralConfig()
 # load word embeddings
 weights = torch.FloatTensor(np.load(gconfig.word_embedding_path))
 # load checkpoint
-model_checkpoint = torch.load('linguistic_style_transfer_pytorch/ckpts/model_epoch_2.pt')
+model_checkpoint = torch.load('linguistic_style_transfer_pytorch/ckpts/model_epoch_20.pt')
 # Load model
 model = AdversarialVAE(weights)
 model.load_state_dict(model_checkpoint)

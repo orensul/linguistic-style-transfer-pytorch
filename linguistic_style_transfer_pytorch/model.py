@@ -4,9 +4,105 @@ import torch.nn as nn
 from linguistic_style_transfer_pytorch.config import ModelConfig, GeneralConfig
 from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
 import math
+import numpy as np
 
 mconfig = ModelConfig()
 gconfig = GeneralConfig()
+
+class RegularizedEmbedding(nn.Module):
+
+    def __init__(self, num_embeddings, embedding_dim, stddev):
+        super().__init__()
+
+        self.embedding = nn.Embedding(num_embeddings, embedding_dim)
+        self.stddev = stddev
+
+    def forward(self, x):
+        x = self.embedding(x)
+
+        if self.training and self.stddev != 0:
+            noise = torch.zeros_like(x)
+            noise.normal_(mean=0, std=self.stddev)
+
+            x = x + noise
+
+        return x
+
+class Generator(nn.Module):
+    def __init__(self):
+        super(Generator, self).__init__()
+        self.embedding_size = mconfig.embedding_size
+        self.latent_size = mconfig.content_hidden_dim
+        self.hidden_size = mconfig.hidden_dim
+
+        vocab_size = 9372
+        path_to_w2v_weights = "/"
+
+        # load pretrained w2v weights if available
+        if (path_to_w2v_weights is not None):
+            print("w2v embedding weights loaded!")
+            weights = torch.FloatTensor(np.load(path_to_w2v_weights))
+            self.embedding = nn.Embedding.from_pretrained(weights)
+            print("w2v embedding weights loaded!")
+        else:
+            self.embedding = nn.Embedding(vocab_size, self.embedding_size)
+
+
+        nn.GRU(self.embedding_size+self.latent_size, self.hidden_size, num_layers=1, batch_first=True)
+        self.latent2hidden = nn.Linear(self.latent_size, self.hidden_size)
+        self.outputs2vocab = nn.Linear(self.hidden_size, vocab_size, bias=False)
+        self.label_smoothing = 0.1
+
+
+    def forward(self, content_code, class_code):
+        input_embedding = self.embedding(input_sequence)  # convert to embeddings
+
+        final_z = torch.cat((class_code, content_code), dim=1)
+        hidden = self.latent2hidden(final_z)
+
+        b, s, _ = input_embedding.size()
+        final_z_copy = final_z.detach().unsqueeze(axis=1)
+        final_z_copy = final_z_copy.expand(b, s, self.latent_size)
+        input_to_decoder = torch.cat((input_embedding, final_z_copy), axis=2)
+
+        hidden = hidden.unsqueeze(axis=0)
+        outputs, _ = self.decoder(input_to_decoder, hidden)
+        outputs = outputs.contiguous()
+        b, s, _ = outputs.size()
+
+        ################ project outputs to vocab
+        logp = self.outputs2vocab(outputs.view(-1, outputs.size(2)))
+        logp = nn.functional.log_softmax(logp, dim=-1)
+        logp = logp.view(b, s, self.embedding.num_embeddings)
+
+
+class LatentModel(nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.content_embedding = RegularizedEmbedding(444032, embedding_dim=mconfig.content_hidden_dim, stddev=1)
+        self.class_embedding = nn.Embedding(2, mconfig.style_hidden_dim)
+
+        self.generator = Generator()
+
+    def forward(self, sentence_id, class_id):
+        content_code = self.content_embedding(sentence_id)
+        class_code = self.class_embedding(class_id)
+        generated_sentence = self.generator(content_code, class_code)
+
+        return {
+            'sentence': generated_sentence,
+            'content_code': content_code,
+            'class_code': class_code
+        }
+
+    def init(self):
+        self.apply(self.weights_init)
+
+    @staticmethod
+    def weights_init(m):
+        if isinstance(m, nn.Embedding):
+            nn.init.uniform_(m.weight, a=-0.05, b=0.05)
+
 
 class AdversarialVAE(nn.Module):
     """
@@ -429,7 +525,7 @@ class AdversarialVAE(nn.Module):
             # Prepend the input sentences with <sos> token
             sos_token_tensor = torch.LongTensor(
                 [gconfig.predefined_word_index['<sos>']]).cuda(device=input_sentences.device).unsqueeze(0).repeat(
-                len(input_sentences), 1)
+                mconfig.batch_size, 1)
             input_sentences = torch.cat(
                 (sos_token_tensor, input_sentences), dim=1)
             sentence_embs = self.dropout(self.embedding(input_sentences))
@@ -442,10 +538,10 @@ class AdversarialVAE(nn.Module):
             # Delete latent embedding and sos token tensor to reduce memory usage
             del latent_emb, sos_token_tensor
             output_sentences = torch.zeros(
-                mconfig.max_seq_len, len(input_sentences), mconfig.vocab_size, device=input_sentences.device)
+                mconfig.max_seq_len, mconfig.batch_size, mconfig.vocab_size, device=input_sentences.device)
             # initialize hidden state
             hidden_states = torch.zeros(
-                len(input_sentences), mconfig.hidden_dim, device=input_sentences.device)
+                mconfig.batch_size, mconfig.hidden_dim, device=input_sentences.device)
             # generate sentences one word at a time in a loop
             for idx in range(mconfig.max_seq_len):
                 # get words at the index idx from all the batches
@@ -506,7 +602,7 @@ class AdversarialVAE(nn.Module):
         # full advantage
         embedded_seq = self.embedding(sequence.unsqueeze(0))
         output, final_hidden_state = self.encoder(embedded_seq)
-
+        pdb.set_trace()
         # get content embeddings
         # Note that we need not calculate style embeddings since we
         # use the target style embedding
