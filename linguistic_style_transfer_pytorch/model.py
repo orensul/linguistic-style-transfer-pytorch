@@ -618,5 +618,5 @@ class AdversarialVAE(nn.Module):
         # Generate the style transfered sentences
         transfered_sentence = self.generate_sentences(
             input_sentencs=None, latent_emb=generative_emb, inference=True)
-
+        print(1)
         return transfered_sentence.view(-1)
